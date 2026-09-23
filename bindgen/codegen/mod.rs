@@ -11,7 +11,7 @@ pub(crate) mod struct_layout;
 #[cfg(test)]
 #[allow(warnings)]
 pub(crate) mod bitfield_unit;
-#[cfg(all(test, target_endian = "little"))]
+#[cfg(test)]
 mod bitfield_unit_tests;
 
 use self::dyngen::DynamicItems;
@@ -944,8 +944,11 @@ impl CodeGenerator for Type {
                     return;
                 }
 
-                let inner_item =
-                    inner.into_resolver().through_type_refs().resolve(ctx);
+                let inner_item = inner
+                    .into_resolver()
+                    .through_type_refs()
+                    .through_type_aliases()
+                    .resolve(ctx);
                 let name = item.canonical_name(ctx);
 
                 let inner_rust_type = {
@@ -4919,19 +4922,25 @@ impl CodeGenerator for Function {
         };
         let ret = utils::fnsig_return_ty(ctx, signature);
 
-        let ident = ctx.rust_ident(ident);
-
         let safety = ctx
             .options()
             .rust_features
             .unsafe_extern_blocks
             .then(|| quote!(unsafe));
 
+        let mark_fn_safe = ctx
+            .options()
+            .safe_functions
+            .matches(ident)
+            .then(|| quote!(safe));
+
+        let ident = ctx.rust_ident(ident);
+
         let tokens = quote! {
             #block_attributes
             #safety extern #abi {
                 #(#attributes)*
-                pub fn #ident ( #( #args ),* ) #ret;
+                pub #mark_fn_safe fn #ident ( #( #args ),* ) #ret;
             }
         };
 
